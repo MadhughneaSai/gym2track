@@ -30,6 +30,13 @@ Log your sets, watch your strength trend on a real metric (not vanity volume), a
 - **Cache-optimized prompting.** The function orders the prompt as `frozen persona + your training context (stable prefix) → conversation → new question`. Because the long prefix never changes between calls, DeepSeek serves almost all of it from its prefix cache — where cached tokens cost ~50× less than fresh ones. In practice that's up to a ~90% cut in inference cost versus an unstructured prompt.
 - **Demo / real isolation.** Sample data lives in its own store and is *never* written over your real data. In demo mode the coach answers on the sample sets and writes no memories; switching demo off resets the demo session cleanly.
 
+## Architecture
+
+Two diagrams in **[ARCHITECTURE.md](ARCHITECTURE.md)**:
+
+- **AI coach request lifecycle** — how a question flows from the browser through the Cloud Function (auth → data load → streaming → memory extraction) to DeepSeek and back.
+- **Cache-optimized prompting** — how ordering the prompt (stable prefix first, volatile last) turns ~50× cheaper cached tokens into up to a ~90% cost cut per call.
+
 ## Project structure
 
 ```
