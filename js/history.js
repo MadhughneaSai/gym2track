@@ -11,6 +11,7 @@ import { openEntryFor } from './log.js';
 
 const body = () => document.getElementById('history-body');
 let view = 'grid';
+let syncNav = null;   // recompute the active view's scroll-arrow state on window resize
 
 export function initHistory() {
   view = prefs().historyView || 'grid';
@@ -25,7 +26,43 @@ export function initHistory() {
     });
   });
   onChange(render);
+  // keep the desktop scroll arrows accurate when the window resizes
+  window.addEventListener('resize', () => syncNav && syncNav(), { passive: true });
   render();
+}
+
+/* ============ desktop horizontal-scroll arrows ============ */
+// Touch users swipe; on a mouse/trackpad there's no easy way to scroll a wide table
+// sideways, so we add left/right arrows below the content. CSS hides them on touch.
+function scrollNavHTML() {
+  return `
+    <div class="hscroll-nav" role="group" aria-label="Scroll sideways">
+      <button class="hscroll-btn" type="button" data-dir="-1" aria-label="Scroll left">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>
+      </button>
+      <button class="hscroll-btn" type="button" data-dir="1" aria-label="Scroll right">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+      </button>
+    </div>`;
+}
+
+function wireScrollNav(scrollEl, navEl) {
+  if (!scrollEl || !navEl) return;
+  const btnL = navEl.querySelector('[data-dir="-1"]');
+  const btnR = navEl.querySelector('[data-dir="1"]');
+  navEl.querySelectorAll('.hscroll-btn').forEach(b =>
+    b.addEventListener('click', () => {
+      const step = Math.max(160, Math.round(scrollEl.clientWidth * 0.8));
+      scrollEl.scrollBy({ left: (+b.dataset.dir) * step, behavior: 'smooth' });
+    }));
+  syncNav = () => {
+    const max = scrollEl.scrollWidth - scrollEl.clientWidth;
+    navEl.classList.toggle('is-hidden', max <= 2);   // nothing to scroll → hide entirely
+    btnL.disabled = scrollEl.scrollLeft <= 2;
+    btnR.disabled = scrollEl.scrollLeft >= max - 2;
+  };
+  scrollEl.addEventListener('scroll', () => requestAnimationFrame(syncNav), { passive: true });
+  requestAnimationFrame(syncNav);
 }
 
 function render() {
@@ -80,12 +117,14 @@ function renderGrid(dates) {
         </thead>
         <tbody>${rows}</tbody>
       </table>
-    </div>`;
+    </div>
+    ${scrollNavHTML()}`;
 
   const wrap = body().querySelector('#table-wrap');
   wrap.addEventListener('scroll', () => {
     wrap.classList.toggle('scrolled-x', wrap.scrollLeft > 2);
   }, { passive: true });
+  wireScrollNav(wrap, body().querySelector('.hscroll-nav'));
 
   wrap.querySelector('tbody').addEventListener('click', ev => {
     const cell = ev.target.closest('td.filled');
@@ -125,10 +164,12 @@ function renderFocus(dates) {
 
   body().innerHTML = `
     <div class="focus-context" id="focus-context"><span class="fc-day"></span><span class="fc-date"></span></div>
-    <div class="focus-deck" id="focus-deck">${cards}</div>`;
+    <div class="focus-deck" id="focus-deck">${cards}</div>
+    ${scrollNavHTML()}`;
 
   const deck = body().querySelector('#focus-deck');
   const ctx = body().querySelector('#focus-context');
+  wireScrollNav(deck, body().querySelector('.hscroll-nav'));
 
   const syncContext = () => {
     const mid = deck.scrollLeft + deck.clientWidth / 2;

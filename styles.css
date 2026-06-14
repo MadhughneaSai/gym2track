@@ -522,6 +522,35 @@ input { font: inherit; color: inherit; background: none; border: 0; outline: non
 .htable td.cell.filled.w { font-family: var(--font-serif); font-weight: 700; font-size: 16px; }
 .table-wrap.scrolled-x .corner, .table-wrap.scrolled-x .rail { box-shadow: 6px 0 0 -5px var(--hairline-2); clip-path: inset(0 -16px 0 0); }
 
+/* desktop-only horizontal scroll arrows (shared by grid + focus); hidden on touch */
+.hscroll-nav { display: none; }
+@media (hover: hover) and (pointer: fine) {
+  .hscroll-nav {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    position: sticky;
+    bottom: 14px;
+    margin-top: 16px;
+    pointer-events: none;   /* clicks pass through the gap; only the buttons catch them */
+    z-index: 6;
+  }
+  .hscroll-nav.is-hidden { display: none; }
+  .hscroll-btn {
+    pointer-events: auto;
+    width: 46px; height: 34px;
+    display: grid; place-items: center;
+    border: 1px solid var(--hairline);
+    background: var(--surface);
+    color: var(--text);
+    cursor: pointer;
+    transition: background var(--t-fade) ease, color var(--t-fade) ease, opacity var(--t-fade) ease;
+  }
+  .hscroll-btn svg { width: 18px; height: 18px; }
+  .hscroll-btn:hover:not(:disabled) { background: var(--text); color: var(--on-ink); }
+  .hscroll-btn:disabled { opacity: 0.32; cursor: default; }
+}
+
 /* ============ PANEL 2 · HISTORY — FOCUS ============ */
 .focus-context { display: flex; align-items: baseline; gap: 12px; padding: 0 2px 16px; min-height: 38px; }
 .focus-context .fc-day {
