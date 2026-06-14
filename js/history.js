@@ -46,23 +46,78 @@ function scrollNavHTML() {
     </div>`;
 }
 
-function wireScrollNav(scrollEl, navEl) {
+// ctrl = { target(dir) → desired scrollLeft, atStart(), atEnd() } — lets each view
+// define its own step (one day in Focus, one week in Grid) and its own end-detection.
+function wireScrollNav(scrollEl, navEl, ctrl) {
   if (!scrollEl || !navEl) return;
   const btnL = navEl.querySelector('[data-dir="-1"]');
   const btnR = navEl.querySelector('[data-dir="1"]');
+  const maxScroll = () => scrollEl.scrollWidth - scrollEl.clientWidth;
   navEl.querySelectorAll('.hscroll-btn').forEach(b =>
     b.addEventListener('click', () => {
-      const step = Math.max(160, Math.round(scrollEl.clientWidth * 0.8));
-      scrollEl.scrollBy({ left: (+b.dataset.dir) * step, behavior: 'smooth' });
+      const t = Math.max(0, Math.min(maxScroll(), Math.round(ctrl.target(+b.dataset.dir))));
+      scrollEl.scrollTo({ left: t, behavior: 'smooth' });
     }));
   syncNav = () => {
-    const max = scrollEl.scrollWidth - scrollEl.clientWidth;
-    navEl.classList.toggle('is-hidden', max <= 2);   // nothing to scroll → hide entirely
-    btnL.disabled = scrollEl.scrollLeft <= 2;
-    btnR.disabled = scrollEl.scrollLeft >= max - 2;
+    navEl.classList.toggle('is-hidden', maxScroll() <= 2);   // nothing to scroll → hide entirely
+    btnL.disabled = ctrl.atStart();
+    btnR.disabled = ctrl.atEnd();
   };
   scrollEl.addEventListener('scroll', () => requestAnimationFrame(syncNav), { passive: true });
   requestAnimationFrame(syncNav);
+}
+
+// Focus: advance exactly one day-card per click, centered (matches the scroll-snap rest points).
+function focusDayCtrl(deck) {
+  const cards = () => [...deck.children];
+  const maxS = () => deck.scrollWidth - deck.clientWidth;
+  const centered = () => {
+    const cs = cards(); if (!cs.length) return 0;
+    const mid = deck.scrollLeft + deck.clientWidth / 2;
+    let idx = 0, best = Infinity;
+    cs.forEach((c, i) => { const d = Math.abs(c.offsetLeft + c.offsetWidth / 2 - mid); if (d < best) { best = d; idx = i; } });
+    return idx;
+  };
+  return {
+    target: (dir) => {
+      const cs = cards(); if (!cs.length) return deck.scrollLeft;
+      const c = cs[Math.max(0, Math.min(cs.length - 1, centered() + dir))];
+      return c.offsetLeft + c.offsetWidth / 2 - deck.clientWidth / 2;   // centre that card
+    },
+    // edge cards can't be centred (not enough scroll room), so the scroll extremes
+    // also count as the ends — otherwise the last/first card never disables its arrow.
+    atStart: () => deck.scrollLeft <= 2 || centered() <= 0,
+    atEnd: () => deck.scrollLeft >= maxS() - 2 || centered() >= cards().length - 1,
+  };
+}
+
+// Grid: advance ~one week of workout-date columns per click, snapped to a column edge.
+function gridWeekCtrl(wrap) {
+  const WEEK = 7 * 24 * 3600 * 1000;
+  const heads = [...wrap.querySelectorAll('th.date-h')];   // left→right = newest→oldest
+  const rail = wrap.querySelector('.corner');
+  const railW = () => (rail ? rail.offsetWidth : 0);
+  const leftOf = h => h.getBoundingClientRect().left - wrap.getBoundingClientRect().left + wrap.scrollLeft;
+  const dms = s => Date.parse(s + 'T00:00:00');
+  const anchorIdx = () => {                                 // leftmost date column past the sticky rail
+    const edge = wrap.scrollLeft + railW() + 2;
+    for (let i = 0; i < heads.length; i++) if (leftOf(heads[i]) + heads[i].offsetWidth > edge) return i;
+    return Math.max(0, heads.length - 1);
+  };
+  return {
+    target: (dir) => {
+      if (!heads.length) return wrap.scrollLeft + dir * wrap.clientWidth * 0.8;
+      const a = anchorIdx(), aDate = dms(heads[a].dataset.date);
+      if (dir > 0) {                                        // older — first column ≥ a week back
+        for (let i = a + 1; i < heads.length; i++) if (aDate - dms(heads[i].dataset.date) >= WEEK) return leftOf(heads[i]) - railW();
+        return Infinity;                                    // within a week of the end → go all the way
+      }
+      for (let i = a - 1; i >= 0; i--) if (dms(heads[i].dataset.date) - aDate >= WEEK) return leftOf(heads[i]) - railW();
+      return 0;                                             // within a week of the start
+    },
+    atStart: () => wrap.scrollLeft <= 2,
+    atEnd: () => wrap.scrollLeft >= wrap.scrollWidth - wrap.clientWidth - 2,
+  };
 }
 
 function render() {
@@ -86,7 +141,7 @@ function render() {
 function renderGrid(dates) {
   const dateHead = dates.map(dt => {
     const dots = dayTypesOf(dt).map(d => `<i style="background:${dayById[d].color}"></i>`).join('');
-    return `<th class="date-h" colspan="2">${fmtDate(dt)}<span class="day-dots">${dots}</span><span class="dow">${fmtDow(dt)}</span></th>`;
+    return `<th class="date-h" colspan="2" data-date="${dt}">${fmtDate(dt)}<span class="day-dots">${dots}</span><span class="dow">${fmtDow(dt)}</span></th>`;
   }).join('');
   const subHead = dates.map(() => `<th class="sub-h">lb</th><th class="sub-h">reps</th>`).join('');
 
@@ -124,7 +179,7 @@ function renderGrid(dates) {
   wrap.addEventListener('scroll', () => {
     wrap.classList.toggle('scrolled-x', wrap.scrollLeft > 2);
   }, { passive: true });
-  wireScrollNav(wrap, body().querySelector('.hscroll-nav'));
+  wireScrollNav(wrap, body().querySelector('.hscroll-nav'), gridWeekCtrl(wrap));
 
   wrap.querySelector('tbody').addEventListener('click', ev => {
     const cell = ev.target.closest('td.filled');
@@ -169,7 +224,7 @@ function renderFocus(dates) {
 
   const deck = body().querySelector('#focus-deck');
   const ctx = body().querySelector('#focus-context');
-  wireScrollNav(deck, body().querySelector('.hscroll-nav'));
+  wireScrollNav(deck, body().querySelector('.hscroll-nav'), focusDayCtrl(deck));
 
   const syncContext = () => {
     const mid = deck.scrollLeft + deck.clientWidth / 2;
