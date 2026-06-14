@@ -1,0 +1,728 @@
+/* ============================================================
+   ATELIER — premium glass / editorial-depth
+   A moody darkroom: thick frosted panels floating over a deep
+   tinted-glass field, film grain, magazine typographic craft.
+   Loaded AFTER styles.css; overrides via the cascade only.
+   Animate transform/opacity only. ≥44px taps, ≥16px inputs.
+   ============================================================ */
+
+/* ---- editorial display face (subset Didot Bold, tabular figures, <10KB) ---- */
+@font-face {
+  font-family: "Atelier Display";
+  src: url("assets/atelier-display.woff2") format("woff2");
+  font-weight: 400 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  /* cinematic motion tokens */
+  --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-soft: cubic-bezier(0.32, 0.72, 0, 1);     /* project --ease, for the pager */
+  --spring: linear(                                /* damped tactile confirm */
+    0, 0.066 3.3%, 0.25 7.3%, 0.857 17.6%, 1.045 22.6%, 1.075 25.5%,
+    1.062 30.5%, 1.001 41.5%, 0.984 49%, 0.999 71%, 1);
+
+  /* glass thickness ladder (Apple ultraThin -> thin -> regular -> thick).
+     thin lifted slightly + lighter tint so cards never vanish on the darkest
+     screens (day picker / focus) while staying translucent. */
+  --glass-thin:  rgba(33, 35, 44, 0.66);
+  --glass-reg:   rgba(24, 26, 34, 0.72);
+  --glass-thick: rgba(15, 16, 19, 0.88);
+
+  --blur-thin:  blur(18px) saturate(170%);
+  --blur-reg:   blur(26px) saturate(175%);
+  --blur-thick: blur(36px) saturate(180%);
+
+  /* the lit top edge + float shadows */
+  --lit: inset 0 1px 0 rgba(255, 255, 255, 0.09);
+  --float-card:  0 2px 4px rgba(0, 0, 0, 0.30), 0 16px 38px -16px rgba(0, 0, 0, 0.55);
+  --float-sheet: 0 2px 4px rgba(0, 0, 0, 0.30), 0 -20px 50px -12px rgba(0, 0, 0, 0.60);
+
+  /* vibrancy text tiers over the frosted field */
+  --text:   rgba(255, 255, 255, 0.92);
+  --text-2: rgba(255, 255, 255, 0.62);
+  --text-3: rgba(255, 255, 255, 0.40);
+
+  /* desaturated ink fills (day --c blended toward surface) */
+  --hairline: rgba(255, 255, 255, 0.08);
+
+  /* wider editorial rhythm */
+  --r-card: 18px;
+  --r-sheet: 26px;
+}
+
+/* ============================================================
+   THE DARKROOM FIELD  — deep tinted glass + static day-mesh
+   ============================================================ */
+html, body {
+  /* one quiet, near-neutral indigo field — no competing corner auroras.
+     A single faint cool wash keeps the blacks clean; the day hue is added
+     by the active-day top wash below (one accent per screen, not three). */
+  background:
+    radial-gradient(120% 70% at 50% -8%, rgba(120, 130, 180, 0.05), transparent 60%),
+    linear-gradient(180deg, #0c0d14 0%, #0a0b11 50%, #08090d 100%);
+  background-attachment: fixed;
+  letter-spacing: 0.002em;
+}
+
+/* the active day warms the field from the top — the SINGLE ambient accent,
+   driven by atelier.js setting data-day on <html>. Coherent across every screen. */
+html[data-day="push"] body { --field-warm: rgba(255, 107, 94, 0.14); }
+html[data-day="legs"] body { --field-warm: rgba(139, 124, 255, 0.15); }
+html[data-day="pull"] body { --field-warm: rgba(56, 217, 169, 0.14); }
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: radial-gradient(125% 62% at 50% -4%, var(--field-warm, rgba(120,130,180,0.05)), transparent 64%);
+  transition: background 600ms ease;
+}
+
+/* App-wide film grain — inline feTurbulence at soft-light, zero requests, kills banding */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  pointer-events: none;
+  mix-blend-mode: soft-light;
+  opacity: 0.05;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='g'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/></filter><rect width='160' height='160' filter='url(%23g)'/></svg>");
+  background-size: 160px 160px;
+}
+/* feature-budget guard: drop grain if the device flags a cheaper budget */
+html.atelier-lite body::after { display: none; }
+
+/* ============================================================
+   TYPOGRAPHY  — one serif display on titles + numerals only
+   ============================================================ */
+.panel-title,
+.day-card .day-name,
+.entry-hero .ex-name,
+.focus-context .fc-day {
+  font-family: "Atelier Display", "Didot", "Hoefler Text", Georgia, serif;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.panel-title {
+  font-size: 32px;
+  letter-spacing: -0.015em;
+  line-height: 1.02;
+}
+
+/* large numerals: tabular lining, tightened */
+.stepper-value,
+.stat .s-val,
+.chart-readout .ro-score {
+  font-family: "Atelier Display", "Didot", Georgia, serif;
+  font-variant-numeric: tabular-nums lining-nums;
+  letter-spacing: -0.02em;
+}
+.stepper-value { font-weight: 700; }
+.stat .s-val { font-size: 19px; font-weight: 700; }
+
+/* section labels become tracked small-caps in the faintest tier */
+.step-label,
+.stat .s-lbl,
+.htable .sub-h,
+.chart-legend,
+.auth-or {
+  font-variant: small-caps;
+  letter-spacing: 0.12em !important;
+  text-transform: none !important;
+  color: var(--text-3);
+}
+
+/* ============================================================
+   GLASS — thin cards / regular chart / thick dock + sheet
+   each promoted to its own compositor layer, size-stable
+   ============================================================ */
+
+/* shared thin-glass card base */
+.day-card,
+.ex-card,
+.entry-hero,
+.stepper,
+.table-wrap,
+.focus-card,
+.stat,
+.pe-chip,
+.pd-btn,
+.today-chip,
+.seg,
+.icon-btn,
+.back-btn,
+.step-btn,
+.empty .e-btn,
+.account-row,
+.entry-row {
+  background: var(--glass-thin);
+  -webkit-backdrop-filter: var(--blur-thin);
+  backdrop-filter: var(--blur-thin);
+  border: 1px solid var(--hairline);
+  box-shadow: var(--lit), var(--float-card);
+  transform: translateZ(0);
+  contain: paint;
+}
+
+/* the big floating cards get the strongest float + lit edge */
+.day-card,
+.ex-card,
+.entry-hero,
+.stepper,
+.focus-card,
+.table-wrap,
+.chart-card {
+  border-radius: var(--r-card);
+}
+
+/* the day-ink editorial top rule — the 4px spine, reimagined as a hairline */
+.day-card::before {
+  width: auto;
+  left: 0; right: 0; top: 0; bottom: auto;
+  height: 1.5px;
+  background: linear-gradient(90deg, var(--c), color-mix(in oklab, var(--c) 30%, transparent) 70%, transparent);
+  opacity: 0.95;
+}
+
+/* day-card interior */
+.day-card { padding: 20px 18px; gap: 16px; }
+.day-card .day-name { font-size: 22px; }
+.day-card .day-meta { color: var(--text-2); }
+.day-card .day-dot {
+  background: color-mix(in oklab, var(--c) 16%, var(--surface));
+  box-shadow: var(--lit), 0 0 0 1px color-mix(in oklab, var(--c) 22%, transparent);
+}
+.day-card .day-minis { color: var(--c); opacity: 0.6; }
+
+/* exercise grid cards */
+.ex-card { padding: 20px 12px 16px; gap: 9px; }
+.ex-card::before {
+  content: "";
+  position: absolute;
+  left: 14px; right: 14px; top: 0;
+  height: 1.5px;
+  background: linear-gradient(90deg, transparent, color-mix(in oklab, var(--c) 70%, transparent), transparent);
+  opacity: 0;
+  transition: opacity 200ms var(--ease-out-quint);
+}
+.ex-card svg.pict { color: var(--c); filter: drop-shadow(0 1px 6px color-mix(in oklab, var(--c) 40%, transparent)); }
+.ex-card .ex-name { font-weight: 600; }
+.ex-card .ex-done {
+  background: var(--c);
+  color: #0B0C0F;
+  box-shadow: 0 2px 10px color-mix(in oklab, var(--c) 55%, transparent);
+}
+.ex-card:has(.ex-done)::before { opacity: 0.8; }
+
+/* entry hero */
+.entry-hero { padding: 18px; gap: 16px; }
+.entry-hero::before {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; top: 0;
+  height: 1.5px;
+  background: linear-gradient(90deg, var(--c), transparent 70%);
+}
+.entry-hero { position: relative; overflow: hidden; }
+.entry-hero svg.pict { color: var(--c); filter: drop-shadow(0 2px 10px color-mix(in oklab, var(--c) 45%, transparent)); }
+.entry-hero .ex-name { font-size: 21px; }
+
+/* ============ STEPPERS ============ */
+.stepper { padding: 16px 16px 18px; }
+.step-btn {
+  background: rgba(255, 255, 255, 0.04);
+  box-shadow: var(--lit), 0 2px 8px rgba(0, 0, 0, 0.25);
+  color: var(--text);
+  transition: transform 160ms var(--spring), background 160ms ease;
+}
+.step-btn:active { transform: scale(0.92); background: color-mix(in oklab, var(--c) 18%, rgba(255,255,255,0.04)); }
+.stepper-value { caret-color: var(--c); font-size: 46px; }
+.stepper-unit { color: var(--text-3); }
+
+.last-hint { color: var(--text-3); }
+
+/* save button — a molded day-ink key, not a flat slab:
+   top sheen -> body -> darker base, a bright inner top edge + a soft inner
+   bottom shadow for a physical lip, over a layered colored lift. */
+.save-btn {
+  background:
+    linear-gradient(180deg,
+      color-mix(in oklab, var(--c) 78%, white 22%) 0%,
+      color-mix(in oklab, var(--c) 96%, white 4%) 42%,
+      color-mix(in oklab, var(--c) 84%, black 16%) 100%);
+  color: #0B0C0F;
+  border-radius: 16px;
+  box-shadow:
+    inset 0 1.5px 0 rgba(255, 255, 255, 0.45),
+    inset 0 -2px 3px color-mix(in oklab, var(--c) 50%, rgba(0,0,0,0.4)),
+    0 10px 30px -8px color-mix(in oklab, var(--c) 60%, transparent),
+    0 3px 8px rgba(0, 0, 0, 0.35);
+  letter-spacing: 0;
+  transition: transform 140ms var(--spring), filter 140ms ease, box-shadow 160ms ease;
+}
+/* in-hand press: physically depresses — compress, lose the lift, settle inward */
+.save-btn:active {
+  transform: scale(0.965) translateY(1px);
+  filter: brightness(1.06) saturate(1.05);
+  box-shadow:
+    inset 0 1.5px 0 rgba(255, 255, 255, 0.40),
+    inset 0 -1px 2px color-mix(in oklab, var(--c) 55%, rgba(0,0,0,0.45)),
+    0 3px 12px -8px color-mix(in oklab, var(--c) 55%, transparent);
+}
+
+/* ============ STEP HEAD / DAY CHIP ============ */
+.day-chip {
+  color: var(--c);
+  background: color-mix(in oklab, var(--c) 16%, var(--surface));
+  border: 1px solid color-mix(in oklab, var(--c) 28%, transparent);
+  box-shadow: var(--lit);
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  -webkit-backdrop-filter: var(--blur-thin);
+  backdrop-filter: var(--blur-thin);
+}
+.day-chip::before { box-shadow: 0 0 6px var(--c); }
+
+/* ============ DOCK — thick glass, recedes under the sheet ============ */
+.dock {
+  background: var(--glass-thick);
+  -webkit-backdrop-filter: var(--blur-thick);
+  backdrop-filter: var(--blur-thick);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  box-shadow: var(--lit), 0 2px 4px rgba(0,0,0,0.30), 0 20px 50px -12px rgba(0, 0, 0, 0.62);
+  transition: transform 280ms var(--ease-out-quint), opacity 240ms ease, filter 280ms ease;
+  transform: translateZ(0) translateX(-50%);
+  contain: layout paint;
+}
+/* recede when a sheet is open (toggled by atelier.js) */
+html.atelier-sheet-open .dock {
+  transform: translateZ(0) translateX(-50%) translateY(14px) scale(0.94);
+  opacity: 0.35;
+  filter: blur(1px);
+  pointer-events: none;
+}
+.dock.is-hidden { transform: translateZ(0) translateX(-50%) translateY(120%); }
+.dock-btn.is-active { color: var(--text); }
+.dock-indicator {
+  /* liquid-glass lens (base adds the specular rim + top sheen) */
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.17), rgba(255, 255, 255, 0.05));
+  box-shadow:
+    inset 0 1px 0.5px rgba(255, 255, 255, 0.45),
+    inset 0 -1px 1.5px rgba(0, 0, 0, 0.22),
+    0 2px 8px rgba(0, 0, 0, 0.26);
+  transition: transform 60ms linear;
+}
+
+/* today chip */
+.today-chip { color: var(--text-2); }
+
+/* segmented control */
+.seg { padding: 3px; }
+.seg-btn {
+  color: var(--text-2);
+  transition: color 200ms var(--ease-out-quint), background 200ms var(--ease-out-quint);
+}
+.seg-btn.is-active {
+  background: rgba(255, 255, 255, 0.10);
+  color: var(--text);
+  box-shadow: var(--lit), 0 1px 4px rgba(0,0,0,0.25);
+}
+
+.icon-btn, .back-btn { color: var(--text-2); }
+
+/* ============================================================
+   PANEL 2 · HISTORY — grid table on thin glass
+   ============================================================ */
+.table-wrap {
+  border-radius: var(--r-card);
+  overflow: auto;
+}
+/* sticky cells need an opaque-ish glass so content doesn't bleed through them */
+.htable thead th,
+.htable .corner,
+.htable .rail {
+  background: rgba(16, 17, 23, 0.92);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+.htable .section-row .rail {
+  color: var(--c);
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  background: rgba(16, 17, 23, 0.92);
+}
+.htable .section-row td {
+  background: color-mix(in oklab, var(--c) 8%, rgba(16,17,23,0.6));
+}
+.htable .section-row td::after {
+  /* day-ink editorial rule under the section label */
+  content: "";
+}
+.htable td.cell { color: var(--text-3); }
+.htable td.cell.filled {
+  color: var(--text);
+  background: color-mix(in oklab, var(--c) 12%, transparent);
+}
+.htable th, .htable td { border-color: var(--hairline); }
+.table-wrap.scrolled-x .corner,
+.table-wrap.scrolled-x .rail { box-shadow: 8px 0 16px -8px rgba(0,0,0,0.7); }
+
+/* ============================================================
+   PANEL 2 · HISTORY — focus deck cards
+   ============================================================ */
+.focus-context .fc-day { color: var(--c); font-size: 22px; }
+.focus-context .fc-date { color: var(--text-2); }
+
+.focus-card {
+  border-radius: var(--r-card);
+  overflow: hidden;
+  position: relative;
+}
+.focus-card::before {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; top: 0;
+  height: 1.5px;
+  z-index: 2;
+  background: linear-gradient(90deg, var(--c), color-mix(in oklab, var(--c) 25%, transparent) 60%, transparent);
+}
+.focus-card .fcard-head {
+  background: color-mix(in oklab, var(--c) 10%, rgba(20, 22, 29, 0.5));
+  border-bottom: 1px solid var(--hairline);
+}
+.focus-card .fcard-date { font-weight: 700; }
+.fcard-row { border-bottom: 1px solid var(--hairline); }
+.fcard-row svg.pict { color: var(--c); opacity: 0.85; }
+
+/* delta chips become small editorial badges with hairline borders */
+.delta {
+  border: 1px solid;
+  background: transparent !important;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  box-shadow: var(--lit);
+}
+/* progress earns the one semantic color (mint); regress/flat stay neutral so
+   the only colors competing on a card are the day hue + a single up-cue */
+.delta.up   { color: var(--pull); border-color: color-mix(in oklab, var(--pull) 38%, transparent); }
+.delta.down { color: var(--text-2); border-color: var(--hairline); }
+.delta.same { color: var(--text-3); border-color: var(--hairline); }
+
+/* ============================================================
+   PANEL 3 · PROGRESS — pickers, stats, chart (regular glass)
+   ============================================================ */
+.pd-btn { color: var(--text-2); transition: color 200ms var(--ease-out-quint), background 200ms var(--ease-out-quint), border-color 200ms var(--ease-out-quint); }
+.pd-btn.is-active {
+  color: var(--c);
+  background: color-mix(in oklab, var(--c) 14%, var(--glass-thin));
+  border-color: color-mix(in oklab, var(--c) 42%, transparent);
+  box-shadow: var(--lit), 0 4px 14px -6px color-mix(in oklab, var(--c) 50%, transparent);
+}
+
+.pe-chip { color: var(--text-2); }
+.pe-chip.is-active {
+  color: var(--text);
+  background: color-mix(in oklab, var(--c) 16%, var(--glass-thin));
+  border-color: color-mix(in oklab, var(--c) 45%, transparent);
+}
+.pe-chip.is-active svg.pict { color: var(--c); }
+
+/* stat tiles — editorial figure treatment */
+.stat { padding: 12px 8px 11px; }
+.stat::before {
+  content: "";
+  position: absolute;
+}
+.stat { position: relative; }
+.stat .s-val.accent { color: var(--c); }
+
+/* chart card = REGULAR glass (one step thicker than cards) */
+.chart-card {
+  background: var(--glass-reg);
+  -webkit-backdrop-filter: var(--blur-reg);
+  backdrop-filter: var(--blur-reg);
+  border: 1px solid var(--hairline);
+  box-shadow: var(--lit), var(--float-card);
+  transform: translateZ(0);
+  contain: paint;
+  position: relative;
+  padding-top: 14px;
+}
+.chart-card::before {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; top: 0;
+  height: 1.5px;
+  background: linear-gradient(90deg, var(--c), transparent 60%);
+  z-index: 1;
+}
+.chart-readout { color: var(--text-2); }
+.chart-readout b { color: var(--text); }
+.chart-readout .ro-score { color: var(--c); font-size: 1.05em; }
+.chart-legend { color: var(--text-3); }
+
+/* the developing-print line: a soft glow on the e1RM stroke */
+.chart-svg .ln[style*="stroke:"] { filter: drop-shadow(0 0 4px color-mix(in oklab, var(--c, #8B7CFF) 50%, transparent)); }
+/* PR markers: clean editorial stars, NOT glowing kitsch (critic fix) */
+.chart-svg .pr-star { filter: none; opacity: 0.92; }
+/* data-point dots stay crisp, no sparkle bloom */
+.chart-svg circle.fade { filter: none; }
+
+/* ============================================================
+   SHEET + TOAST — thick glass, deep float
+   ============================================================ */
+.sheet {
+  background: var(--glass-thick);
+  -webkit-backdrop-filter: var(--blur-thick);
+  backdrop-filter: var(--blur-thick);
+  border-top: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: var(--r-sheet) var(--r-sheet) 0 0;
+  box-shadow: var(--lit), var(--float-sheet);
+  transition: transform 340ms var(--ease-out-quint);
+}
+.sheet h3 {
+  font-family: "Atelier Display", "Didot", Georgia, serif;
+  font-weight: 700;
+  font-size: 20px;
+}
+.sheet-backdrop { background: rgba(4, 5, 8, 0.6); }
+.entry-row { background: var(--glass-thin); }
+.entry-row .er-del { background: color-mix(in oklab, var(--push) 16%, transparent); color: var(--push); border: 1px solid color-mix(in oklab, var(--push) 30%, transparent); }
+.sheet-action {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--hairline);
+  box-shadow: var(--lit);
+}
+.sheet-action.danger { color: var(--push); }
+
+.toast {
+  background: var(--glass-thick);
+  -webkit-backdrop-filter: var(--blur-thick);
+  backdrop-filter: var(--blur-thick);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  box-shadow: var(--lit), 0 12px 30px rgba(0, 0, 0, 0.5);
+}
+
+/* ============ EMPTY STATES ============ */
+.empty .e-title {
+  font-family: "Atelier Display", "Didot", Georgia, serif;
+  font-weight: 700;
+}
+.empty svg.pict { color: var(--text-3); }
+
+/* ============================================================
+   AUTH GATE — darkroom field carries through
+   ============================================================ */
+.auth-gate {
+  /* the gate is the one place all three day hues may coexist — it sets the
+     brand before a day is chosen. Kept as a calm vertical wash, not corner blobs. */
+  background:
+    radial-gradient(130% 60% at 50% -10%, rgba(139, 124, 255, 0.16), transparent 60%),
+    radial-gradient(90% 50% at 50% 112%, rgba(56, 217, 169, 0.10), transparent 60%),
+    linear-gradient(180deg, #0d0e16, #08090d);
+}
+.auth-title { font-family: "Atelier Display", "Didot", Georgia, serif; font-weight: 700; }
+.auth-input {
+  background: var(--glass-thin);
+  -webkit-backdrop-filter: var(--blur-thin);
+  backdrop-filter: var(--blur-thin);
+  border: 1px solid var(--hairline);
+  font-size: 16px; /* keep ≥16px: no iOS focus-zoom */
+}
+
+/* ============================================================
+   MOTION — editorial reveal cascade + tactile presses
+   (transform/opacity only; JS adds .in via IntersectionObserver)
+   ============================================================ */
+
+/* staggered fade-up cascade: items start hidden, .in releases them */
+.ex-grid .ex-card,
+.focus-deck .focus-card,
+.htable tbody tr,
+.picker-days .pd-btn,
+.stat-strip .stat,
+.day-card {
+  --i: 0;
+}
+html.atelier-js .ex-grid .ex-card,
+html.atelier-js .focus-deck .focus-card,
+html.atelier-js .stat-strip .stat,
+html.atelier-js .day-card {
+  opacity: 0;
+  transform: translateY(14px);
+  transition:
+    opacity 320ms var(--ease-out-quint),
+    transform 320ms var(--ease-out-quint);
+  transition-delay: calc(var(--i) * 44ms);
+  will-change: transform, opacity;
+}
+html.atelier-js .ex-grid .ex-card.in,
+html.atelier-js .focus-deck .focus-card.in,
+html.atelier-js .stat-strip .stat.in,
+html.atelier-js .day-card.in {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* history rows cascade as a subtler fade (table layout must not jump) */
+html.atelier-js .htable tbody tr {
+  opacity: 0;
+  transition: opacity 300ms var(--ease-out-quint);
+  transition-delay: calc(var(--i) * 30ms);
+}
+html.atelier-js .htable tbody tr.in { opacity: 1; }
+
+/* sticky-header parallax: panel-head scales down + corner blur deepens
+   as content scrolls beneath. JS sets --sh (0..1) throttled. */
+.panel-head {
+  transform-origin: left center;
+  transform: scale(calc(1 - var(--sh, 0) * 0.06)) translateZ(0);
+  will-change: transform;
+}
+.panel-title { opacity: calc(1 - var(--sh, 0) * 0.18); }
+
+/* press feedback on cards */
+.day-card, .ex-card, .pe-chip, .pd-btn {
+  transition: transform 160ms var(--ease-out-quint), border-color 200ms var(--ease-out-quint), box-shadow 200ms var(--ease-out-quint);
+}
+.day-card:active, .ex-card:active { transform: scale(0.985) translateZ(0); }
+
+/* the wizard step slide retimed to the cinematic curve */
+.log-step { animation: at-step-in 340ms var(--ease-out-quint); }
+.log-step.is-back { animation: at-step-in-back 340ms var(--ease-out-quint); }
+@keyframes at-step-in      { from { opacity: 0; transform: translateX(24px); } to { opacity: 1; transform: translateX(0); } }
+@keyframes at-step-in-back { from { opacity: 0; transform: translateX(-24px); } to { opacity: 1; transform: translateX(0); } }
+
+/* chart reveal, sequenced like a developing print:
+   1) the line draws across the full timeline, then
+   2) area/dots/stars/labels surface after the line is mostly down (staged, not all-at-once) */
+.chart-svg.is-anim .ln   { animation-duration: 780ms; animation-timing-function: var(--ease-out-quint); }
+.chart-svg.is-anim .fade { animation-duration: 460ms; animation-delay: 360ms; animation-timing-function: var(--ease-out-quint); }
+.chart-svg.is-anim .bar  { animation-duration: 460ms; animation-timing-function: var(--spring); }
+
+/* ============================================================
+   SAVE CONFIRMATION — the win lands in the TOAST (the one element
+   reliably on-screen after a save, since the step navigates away).
+   Routine save = a clean check + soft lift. Genuine PR = day-color
+   glow, a sweeping shimmer, and a NEW PR badge. atelier.js sets state.
+   ============================================================ */
+.toast {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  overflow: hidden;
+  position: relative;
+}
+/* leading check on every save toast (atelier.js prepends .at-toast-ic) */
+.at-toast-ic {
+  flex: 0 0 18px;
+  width: 18px; height: 18px;
+  display: grid; place-items: center;
+  color: var(--c, var(--text));
+}
+.at-toast-ic svg { width: 18px; height: 18px; }
+.at-toast-ic .at-check2 {
+  stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round;
+  fill: none; stroke-dasharray: 1; stroke-dashoffset: 1;
+}
+.toast.show .at-toast-ic .at-check2 { animation: at-ring-draw 360ms var(--ease-out-quint) 80ms forwards; }
+@keyframes at-ring-draw { to { stroke-dashoffset: 0; } }
+
+/* PR variant — celebratory but tasteful */
+.toast.at-pr {
+  border-color: color-mix(in oklab, var(--c) 55%, var(--hairline));
+  box-shadow: var(--lit), 0 12px 34px -8px color-mix(in oklab, var(--c) 50%, transparent), 0 10px 28px rgba(0,0,0,0.5);
+}
+.toast.at-pr .at-toast-ic { color: var(--c); }
+.toast.at-pr::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(105deg, transparent 35%, color-mix(in oklab, var(--c) 38%, transparent) 50%, transparent 65%);
+  transform: translateX(-120%);
+}
+.toast.at-pr.show::after { animation: at-pr-sweep 900ms var(--ease-out-quint) 120ms; }
+@keyframes at-pr-sweep { to { transform: translateX(120%); } }
+.at-pr-badge {
+  font-size: 10px; font-weight: 800; letter-spacing: 0.12em;
+  color: #0B0C0F;
+  background: var(--c);
+  padding: 2px 7px;
+  border-radius: 99px;
+  margin-left: 2px;
+  font-family: -apple-system, sans-serif;
+}
+
+/* ============================================================
+   HERO — the generated training-spread summary card (atelier.js)
+   ============================================================ */
+.atelier-spread-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 95;
+  background: rgba(4, 5, 8, 0.66);
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+  opacity: 0;
+  transition: opacity 280ms var(--ease-out-quint);
+}
+.atelier-spread-backdrop.open { opacity: 1; }
+.atelier-spread {
+  position: fixed;
+  left: 50%; top: 50%;
+  z-index: 96;
+  width: min(360px, 88vw);
+  transform: translate(-50%, -48%) scale(0.92);
+  opacity: 0;
+  background: var(--glass-thick);
+  -webkit-backdrop-filter: var(--blur-thick);
+  backdrop-filter: var(--blur-thick);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 22px;
+  box-shadow: var(--lit), 0 30px 70px -16px rgba(0, 0, 0, 0.72);
+  overflow: hidden;
+  transition: transform 360ms var(--ease-out-quint), opacity 300ms var(--ease-out-quint);
+  contain: paint;
+}
+.atelier-spread.open { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+.atelier-spread svg { display: block; width: 100%; height: auto; }
+
+/* ============================================================
+   DESKTOP — wider editorial margins
+   ============================================================ */
+@media (min-width: 900px) {
+  @media (hover: hover) {
+    .day-card:hover, .ex-card:hover {
+      border-color: color-mix(in oklab, var(--c) 50%, var(--hairline));
+      transform: translateY(-2px) translateZ(0);
+      box-shadow: var(--lit), 0 6px 12px rgba(0,0,0,0.3), 0 24px 50px -16px color-mix(in oklab, var(--c) 30%, rgba(0,0,0,0.55));
+    }
+    .ex-card:hover::before { opacity: 0.7; }
+    .pe-chip:hover, .seg-btn:hover, .dock-btn:hover { color: var(--text); }
+  }
+}
+
+/* ============================================================
+   REDUCED MOTION — instant fades, no travel; peak flag still shows
+   ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+  html.atelier-js .ex-grid .ex-card,
+  html.atelier-js .focus-deck .focus-card,
+  html.atelier-js .stat-strip .stat,
+  html.atelier-js .day-card,
+  html.atelier-js .htable tbody tr {
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
+  }
+  .panel-head { transform: none !important; }
+  .panel-title { opacity: 1 !important; }
+  .atelier-spread { transition: opacity 120ms ease !important; transform: translate(-50%, -50%) scale(1) !important; }
+  .atelier-spread:not(.open) { opacity: 0; }
+  .dock, .sheet, .save-btn, .step-btn { transition: opacity 120ms ease !important; }
+}

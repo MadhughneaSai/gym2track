@@ -1,0 +1,18 @@
+# Dependencies
+node_modules/
+functions/node_modules/
+
+# Secrets & local environment (model/config lives in .env; the DeepSeek key is a Firebase secret, never here)
+.env
+functions/.env
+*.local
+
+# Firebase local artifacts
+.firebase/
+*-debug.log
+
+# Local session / tooling data
+.claude/
+
+# macOS
+.DS_Store

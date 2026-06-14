@@ -1,0 +1,625 @@
+/* ============================================================
+   QUIET STEEL — a precision instrument that defers to your data.
+   Calm, refined, Apple-clean. ~90% neutral grayscale; one honest
+   accent at a time. Loaded AFTER styles.css; overrides via cascade.
+   Animate transform/opacity only. Phone-first, >=44px taps, >=16px inputs.
+   ============================================================ */
+
+:root {
+  /* keep base bg; build a strict 5-step luminance elevation ladder.
+     Apple dark-mode rule: lighter = closer, never heavier shadow. */
+  --bg: #0B0C0F;
+  --surface: #15161B;          /* elev-1 — cards at rest */
+  --surface-2: #1D1F26;        /* elev-2 — recessed wells, step buttons */
+  --elev-3: #23252E;           /* active rows / pressed wells */
+  --elev-4: #2A2D38;           /* dock / sheet glass-fallback at rest */
+
+  --hairline: #272A32;
+  --text: #F2F3F5;
+  --text-2: #9BA1AC;
+  --text-3: #5C636E;
+
+  /* glass labels are capped — never pure white on frosted surfaces */
+  --on-glass: rgba(242, 243, 245, 0.92);
+
+  /* day colors stay EXACTLY as specified */
+  --push: #FF6B5E;
+  --legs: #8B7CFF;
+  --pull: #38D9A9;
+
+  /* refined motion ladder */
+  --ease-out: cubic-bezier(.22, 1, .36, 1);     /* arrivals */
+  --ease-in:  cubic-bezier(.4, 0, 1, 1);        /* exits (0.7x duration) */
+  --ease-spring: cubic-bezier(.34, 1.56, .64, 1); /* the ONE springy moment */
+  /* keep project --ease for the pager (defined in styles.css) */
+
+  --t-tap: 120ms;
+  --t-cell: 180ms;
+  --t-step: 300ms;
+  --t-step-out: 210ms; /* 0.7x */
+
+  /* material edges */
+  --bevel: inset 0 1px 0 rgba(255, 255, 255, .06), 0 1px 0 rgba(0, 0, 0, .4);
+  --lift: 0 2px 4px rgba(0, 0, 0, .30), 0 8px 20px -4px rgba(0, 0, 0, .40);
+}
+
+/* per-day derived tones — austere large fills, soft selected tints */
+.day-card, .ex-card, .ex-grid, .step-head, .entry-hero, .stepper,
+.save-btn, .day-chip, .pd-btn, .pe-chip, .chart-card, .focus-card,
+.focus-context, .section-row, .empty, #mode-seg, #range-seg, .stat {
+  --c-dim: color-mix(in oklab, var(--c), var(--bg) 20%);
+  --c-soft: color-mix(in oklab, var(--c) 8%, var(--surface));
+  --c-glow: color-mix(in oklab, var(--c) 35%, transparent);
+}
+
+/* ============ BODY / TYPOGRAPHY — luxury via vertical rhythm ============ */
+html, body {
+  background: var(--bg);
+  line-height: 1.45; /* open the body */
+  font-feature-settings: "ss01" off;
+}
+
+.panel-title {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+
+/* ============ AMBIENT BACKGROUND — almost nothing, deference ============ */
+/* a single barely-there luminance wash per panel-scroll, picking up the
+   faintest active-day tint at the very top. No orbs, no grain. */
+#panel-log    .panel-scroll { --c: var(--push); }
+#panel-history .panel-scroll { --c: var(--legs); }
+#panel-progress .panel-scroll { --c: var(--pull); }
+
+.panel-scroll {
+  background:
+    radial-gradient(140% 60% at 50% -10%,
+      color-mix(in oklab, var(--c) 6%, transparent), transparent 55%),
+    var(--bg);
+}
+/* the JS module re-points --c to the truly-active day per panel */
+
+/* ============ SEGMENTED CONTROL — the sliding Apple pill ============ */
+.seg {
+  position: relative;
+  background: var(--surface-2);
+  border: 1px solid var(--hairline);
+  box-shadow: var(--bevel);
+  isolation: isolate;
+}
+/* single sliding pill under the labels — driven by JS via --seg-x / --seg-w */
+.seg::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  height: calc(100% - 6px);
+  width: var(--seg-w, 0px);
+  transform: translateX(var(--seg-x, 0px));
+  background: var(--elev-3);
+  border-radius: 99px;
+  box-shadow: var(--bevel);
+  z-index: 0;
+  transition: transform 300ms var(--ease-spring), width 300ms var(--ease-spring);
+  pointer-events: none;
+}
+.seg.seg-ready::after { opacity: 1; }
+.seg:not(.seg-ready)::after { opacity: 0; }
+.seg-btn {
+  position: relative;
+  z-index: 1;
+  color: var(--text-2);
+  font-weight: 600;
+  background: none !important; /* recolor handled by the pill, not per-button */
+  transition: color var(--t-cell) ease;
+}
+.seg-btn.is-active { background: none; color: var(--text); }
+
+/* ============ TODAY CHIP / ICON BTN ============ */
+.today-chip {
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  box-shadow: var(--bevel);
+  color: var(--text-2);
+}
+.icon-btn {
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  box-shadow: var(--bevel);
+  transition: transform var(--t-tap) var(--ease-out), color var(--t-cell) ease;
+}
+.icon-btn:active { transform: scale(.97); }
+
+/* ============ DOCK — frosted glass (surface #1) ============ */
+.dock {
+  background: rgba(21, 22, 27, .80);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  backdrop-filter: blur(28px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, .06);
+  /* lit bevel + soft lift, no colored glow */
+  box-shadow:
+    var(--bevel),
+    0 2px 4px rgba(0, 0, 0, .30),
+    0 12px 32px -6px rgba(0, 0, 0, .50);
+  transform: translateX(-50%) translateZ(0);
+  isolation: isolate;
+}
+.dock.is-hidden { transform: translateX(-50%) translateY(120%) translateZ(0); }
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .dock { background: var(--elev-4); }
+}
+.dock-btn { color: var(--text-3); transition: color var(--t-cell) ease; }
+.dock-btn.is-active { color: var(--on-glass); }
+.dock-btn:active { transform: scale(.95); }
+/* active indicator — the one neutral-on-glass active surface; tinted by panel */
+.dock-indicator {
+  background: var(--elev-4);
+  box-shadow: var(--bevel);
+  will-change: transform;
+}
+
+/* ============ PANEL 0 · LOG ============ */
+/* wizard step transitions — asymmetric arrivals/exits */
+.log-step { animation: qs-step-in var(--t-step) var(--ease-out); }
+.log-step.is-back { animation: qs-step-in-back var(--t-step) var(--ease-out); }
+@keyframes qs-step-in {
+  from { opacity: 0; transform: translateX(24px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes qs-step-in-back {
+  from { opacity: 0; transform: translateX(-24px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+.step-label {
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 600;
+}
+
+/* day cards — neutral at rest; lit bevel + soft black lift */
+.day-card {
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  box-shadow: var(--bevel), var(--lift);
+  transition: transform var(--t-tap) var(--ease-out);
+  /* staggered reveal, capped */
+  animation: qs-rise 360ms var(--ease-out) backwards;
+  animation-delay: calc(var(--i, 0) * 48ms);
+}
+.day-card:nth-of-type(1) { --i: 0; }
+.day-card:nth-of-type(2) { --i: 1; }
+.day-card:nth-of-type(3) { --i: 2; }
+.day-card:active { transform: scale(.97); }
+/* spine: neutral until selected; desaturated+dimmed day color */
+.day-card::before {
+  background: var(--text-3);
+  width: 3px;
+  opacity: .6;
+  transition: background var(--t-cell) ease, opacity var(--t-cell) ease;
+}
+.day-card.is-selected::before,
+.day-card[aria-pressed="true"]::before {
+  background: var(--c-dim);
+  opacity: 1;
+  width: 4px;
+}
+.day-card .day-name { letter-spacing: -0.01em; }
+.day-card .day-meta { color: var(--text-2); }
+/* minis stay neutral — accent appears only on the active element */
+.day-card .day-minis { color: var(--text-3); opacity: .7; }
+.day-card .day-dot {
+  background: var(--surface-2);
+  color: var(--text-2);
+  box-shadow: var(--bevel);
+}
+
+/* step header */
+.back-btn {
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  box-shadow: var(--bevel);
+  color: var(--text-2);
+  transition: transform var(--t-tap) var(--ease-out);
+}
+.back-btn:active { transform: scale(.97); }
+/* day chip — the one accent on Step B/C header; soft tint, dimmed color */
+.day-chip {
+  color: var(--c-dim);
+  background: var(--c-soft);
+  border: 1px solid color-mix(in oklab, var(--c) 22%, transparent);
+  font-weight: 700;
+}
+.day-chip::before { background: var(--c-dim); }
+
+/* exercise grid — neutral pictograms; staggered reveal capped at 250ms */
+.ex-card {
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  box-shadow: var(--bevel), var(--lift);
+  transition: transform var(--t-tap) var(--ease-out), border-color var(--t-cell) ease;
+  animation: qs-rise 320ms var(--ease-out) backwards;
+  animation-delay: calc(min(var(--i, 0), 6) * 36ms);
+}
+.ex-card:nth-child(1){--i:0} .ex-card:nth-child(2){--i:1}
+.ex-card:nth-child(3){--i:2} .ex-card:nth-child(4){--i:3}
+.ex-card:nth-child(5){--i:4} .ex-card:nth-child(6){--i:5}
+.ex-card:nth-child(7){--i:6} .ex-card:nth-child(n+8){--i:6}
+.ex-card:active { transform: scale(.97); }
+.ex-card svg.pict { color: var(--text-2); }
+.ex-card .ex-name { font-weight: 600; }
+.ex-card .ex-sub { color: var(--text-3); }
+/* a logged exercise earns a quiet dimmed-color accent ring */
+.ex-card:has(.ex-done) { border-color: color-mix(in oklab, var(--c) 26%, var(--hairline)); }
+.ex-card:has(.ex-done) svg.pict { color: var(--c-dim); }
+.ex-card .ex-done {
+  background: var(--c-dim);
+  color: var(--bg);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .4);
+}
+
+@keyframes qs-rise {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ============ STEP C — entry ============ */
+.entry-hero {
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  box-shadow: var(--bevel), var(--lift);
+}
+.entry-hero svg.pict { color: var(--c-dim); }
+.entry-hero .ex-name { letter-spacing: -0.01em; }
+
+.stepper {
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  box-shadow: var(--bevel), var(--lift);
+}
+.stepper-label {
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 600;
+}
+/* recessed well buttons */
+.step-btn {
+  background: var(--surface-2);
+  border: 1px solid var(--hairline);
+  box-shadow: var(--bevel);
+  color: var(--text);
+  transition: transform var(--t-tap) var(--ease-out), background var(--t-tap) ease;
+}
+.step-btn:active { background: var(--elev-3); transform: scale(.97); }
+/* tighten large numerals so count-ups / typing never reflow */
+.stepper-value {
+  line-height: 1;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+  caret-color: var(--c-dim);
+}
+.stepper-unit { color: var(--text-3); }
+
+/* last-hint — Halide teach-then-recede; JS settles color, this is the fallback */
+.last-hint {
+  color: var(--text-2);
+  animation: qs-hint 1400ms var(--ease-out) forwards;
+}
+@keyframes qs-hint {
+  0%   { opacity: 0; transform: translateY(2px); }
+  22%  { opacity: 1; transform: translateY(0); color: var(--text-2); }
+  100% { opacity: 1; color: var(--text-3); }
+}
+
+/* SAVE — the one full-width accent; dimmed fill + reserved colored glow.
+   .save-host wraps the button (added by JS) to anchor the conic ring. */
+.save-host { position: relative; isolation: isolate; }
+.save-btn {
+  position: relative;
+  background: var(--c-dim);
+  color: var(--bg);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  box-shadow:
+    var(--bevel),
+    0 2px 4px rgba(0, 0, 0, .30),
+    0 8px 24px -8px var(--c-glow);
+  transition: transform var(--t-tap) var(--ease-out), filter var(--t-tap) ease;
+}
+.save-btn:active { transform: scale(.98); filter: brightness(1.06); }
+/* pre-rendered glow bloom — opacity animated, NOT shadow */
+.save-btn::before {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  border-radius: inherit;
+  background: radial-gradient(60% 80% at 50% 50%, var(--c-glow), transparent 70%);
+  filter: blur(14px);
+  opacity: 0;
+  z-index: -1;
+  pointer-events: none;
+}
+.save-host.is-bloom .save-btn::before {
+  animation: qs-bloom 620ms var(--ease-out) forwards;
+}
+@keyframes qs-bloom {
+  0%   { opacity: 0; transform: scale(.96); }
+  35%  { opacity: 1; transform: scale(1.04); }
+  100% { opacity: 0; transform: scale(1.08); }
+}
+/* conic confirmation ring + check (SVG injected by JS) */
+.save-ring {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  display: grid;
+  place-items: center;
+  z-index: 2;
+}
+.save-ring svg { width: 30px; height: 30px; overflow: visible; }
+.save-ring .qs-arc {
+  stroke: var(--c-dim);
+  stroke-linecap: round;
+  fill: none;
+  stroke-width: 3;
+  stroke-dasharray: 100;
+  stroke-dashoffset: 100;
+}
+.save-host.is-confirm .save-ring .qs-arc {
+  animation: qs-sweep 420ms var(--ease-spring) forwards;
+}
+.save-ring .qs-check {
+  stroke: var(--bg);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  fill: none;
+  stroke-width: 3;
+  stroke-dasharray: 24;
+  stroke-dashoffset: 24;
+  transform: scale(.4);
+  transform-origin: center;
+  opacity: 0;
+}
+.save-host.is-confirm .save-ring .qs-check {
+  animation: qs-check 260ms var(--ease-spring) 220ms forwards;
+}
+@keyframes qs-sweep {
+  from { stroke-dashoffset: 100; }
+  60%  { stroke-dashoffset: -6; }  /* tiny overshoot */
+  to   { stroke-dashoffset: 0; }
+}
+@keyframes qs-check {
+  from { stroke-dashoffset: 24; transform: scale(.4); opacity: 0; }
+  to   { stroke-dashoffset: 0;  transform: scale(1);  opacity: 1; }
+}
+
+/* ============ PANEL 1 · HISTORY — GRID (flat neutral, max contrast) ============ */
+.table-wrap {
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  box-shadow: var(--bevel), var(--lift);
+}
+.htable .corner,
+.htable .rail,
+.htable thead th { background: var(--surface); }
+.htable th, .htable td { border-color: var(--hairline); }
+/* section header rail — dimmed day color, restrained */
+.htable .section-row .rail { color: var(--c-dim); background: var(--surface); }
+.htable .section-row td { background: color-mix(in oklab, var(--c) 4%, var(--surface)); }
+.htable tbody .rail { color: var(--text-2); }
+.htable td.cell { color: var(--text-3); }
+/* filled cells: neutral fill, value in full text — accent stays reserved */
+.htable td.cell.filled {
+  color: var(--text);
+  background: color-mix(in oklab, var(--c) 6%, transparent);
+  transition: background var(--t-cell) ease;
+}
+.htable td.cell.w { font-weight: 700; }
+
+/* ============ PANEL 1 · HISTORY — FOCUS ============ */
+.focus-context .fc-day { color: var(--c-dim); letter-spacing: -0.01em; }
+.focus-context .fc-date { color: var(--text-2); }
+.focus-card {
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  box-shadow: var(--bevel), var(--lift);
+}
+.focus-card .fcard-head {
+  background: var(--c-soft);
+  border-bottom: 1px solid var(--hairline);
+}
+.fcard-row { border-bottom: 1px solid var(--hairline); }
+.fcard-row svg.pict { color: var(--text-2); opacity: 1; }
+.fcard-row .fr-set { font-variant-numeric: tabular-nums; }
+.fcard-row .fr-set .x, .fcard-row .fr-set .u { color: var(--text-3); }
+/* delta chips — only .up earns the accent; down/same stay neutral */
+.delta { font-variant-numeric: tabular-nums; }
+.delta.up   { color: var(--pull); background: color-mix(in oklab, var(--pull) 12%, var(--surface)); }
+.delta.down { color: var(--text-2); background: var(--surface-2); }
+.delta.same { color: var(--text-3); background: var(--surface-2); }
+
+/* ============ PANEL 2 · PROGRESS ============ */
+/* day picker — neutral at rest; active is dimmed-color soft tint */
+.pd-btn {
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  box-shadow: var(--bevel);
+  color: var(--text-2);
+  font-weight: 700;
+  transition: transform var(--t-tap) var(--ease-out), color var(--t-cell) ease,
+              background var(--t-cell) ease, border-color var(--t-cell) ease;
+}
+.pd-btn:active { transform: scale(.97); }
+.pd-btn.is-active {
+  color: var(--c-dim);
+  background: var(--c-soft);
+  border-color: color-mix(in oklab, var(--c) 26%, transparent);
+}
+
+.pe-chip {
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  box-shadow: var(--bevel);
+  color: var(--text-2);
+  /* spring selection — the second springy moment, like chips */
+  transition: transform 180ms var(--ease-spring), color var(--t-cell) ease,
+              background var(--t-cell) ease, border-color var(--t-cell) ease;
+}
+.pe-chip:active { transform: scale(.97); }
+.pe-chip svg.pict { color: var(--text-3); }
+.pe-chip.is-active {
+  color: var(--text);
+  background: var(--c-soft);
+  border-color: color-mix(in oklab, var(--c) 28%, transparent);
+}
+.pe-chip.is-active svg.pict { color: var(--c-dim); }
+
+/* stat tiles — neutral; accent only on the e1RM-now tile */
+.stat {
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  box-shadow: var(--bevel), var(--lift);
+}
+.stat .s-val {
+  font-size: 22px;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text); /* never gradient-filled */
+}
+.stat .s-val.accent { color: var(--c-dim); } /* only the e1RM-now tile */
+.stat .s-lbl {
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 600;
+}
+
+/* chart — flat neutral card so the data reads at max contrast */
+.chart-card {
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  box-shadow: var(--bevel), var(--lift);
+}
+.chart-readout { color: var(--text-2); font-variant-numeric: tabular-nums; }
+.chart-readout b { color: var(--text); }
+.chart-readout .ro-score { color: var(--c-dim); }
+.chart-legend { color: var(--text-3); }
+
+/* ============ EMPTY ============ */
+.empty svg.pict { color: var(--text-3); }
+.empty .e-title { color: var(--text); }
+.empty .e-sub { color: var(--text-3); }
+.empty .e-btn {
+  background: var(--surface-2);
+  border: 1px solid var(--hairline);
+  box-shadow: var(--bevel);
+  color: var(--text);
+  transition: transform var(--t-tap) var(--ease-out);
+}
+.empty .e-btn:active { transform: scale(.97); }
+
+/* ============ SHEET — frosted glass (surface #2, never stacked w/ dock) ============ */
+.sheet {
+  background: rgba(21, 22, 27, .80);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  backdrop-filter: blur(28px) saturate(180%);
+  border-top: 1px solid rgba(255, 255, 255, .06);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .06),
+    0 -10px 44px rgba(0, 0, 0, .55);
+  transform: translateY(100%) translateZ(0);
+  transition: transform var(--t-step) var(--ease-out);
+  isolation: isolate;
+}
+.sheet.open { transform: translateY(0) translateZ(0); }
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .sheet { background: var(--elev-4); }
+}
+.sheet h3 { letter-spacing: -0.01em; }
+.sheet .sheet-sub { color: var(--text-2); }
+.sheet-grab { background: var(--text-3); }
+
+.entry-row {
+  background: rgba(13, 14, 18, .5);
+  border: 1px solid var(--hairline);
+  box-shadow: var(--bevel);
+}
+.entry-row .er-set .x, .entry-row .er-time { color: var(--text-3); }
+.entry-row .er-del {
+  color: var(--push);
+  background: color-mix(in oklab, var(--push) 12%, transparent);
+}
+.sheet-action {
+  background: rgba(13, 14, 18, .5);
+  border: 1px solid var(--hairline);
+  box-shadow: var(--bevel);
+  transition: transform var(--t-tap) var(--ease-out);
+}
+.sheet-action:active { transform: scale(.98); }
+.sheet-action.danger { color: var(--push); }
+.sheet-action.accent { color: var(--pull); border-color: color-mix(in oklab, var(--pull) 30%, var(--hairline)); }
+
+/* ============ TOAST ============ */
+.toast {
+  background: rgba(29, 31, 38, .92);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, .06);
+  box-shadow: var(--bevel), 0 10px 28px rgba(0, 0, 0, .5);
+  color: var(--on-glass);
+  transition: opacity var(--t-cell) ease, transform var(--t-cell) var(--ease-out);
+}
+
+/* ============ AUTH (kept calm; restrained accent) ============ */
+.auth-gate {
+  background:
+    radial-gradient(120% 70% at 50% -10%, color-mix(in oklab, var(--legs) 8%, transparent), transparent 60%),
+    var(--bg);
+}
+.auth-card { animation: qs-rise 460ms var(--ease-out); }
+.auth-input {
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  box-shadow: var(--bevel);
+  font-size: 16px; /* no iOS focus-zoom */
+}
+.auth-input:focus { border-color: color-mix(in oklab, var(--legs) 45%, var(--hairline)); }
+.auth-submit {
+  background: color-mix(in oklab, var(--legs), var(--bg) 18%);
+  color: var(--bg);
+  box-shadow: var(--bevel), 0 8px 24px -8px color-mix(in oklab, var(--legs) 35%, transparent);
+  transition: transform var(--t-tap) var(--ease-out), filter var(--t-tap) ease;
+}
+.auth-submit:active { transform: scale(.98); filter: brightness(1.06); }
+.auth-google {
+  box-shadow: var(--bevel), var(--lift);
+  transition: transform var(--t-tap) var(--ease-out), filter var(--t-tap) ease;
+}
+.auth-google:active { transform: scale(.98); }
+
+/* ============ CHART MOTION — refined easings on the existing hooks ============ */
+.chart-svg.is-anim .ln { animation: ln-draw 720ms var(--ease-out) forwards; }
+.chart-svg.is-anim .fade { animation: ch-fade 460ms var(--ease-out) 220ms forwards; }
+.chart-svg.is-anim .bar { animation: ch-grow 460ms var(--ease-out) backwards; }
+
+/* ============ PREFERS-REDUCED-MOTION — collapse to 1ms opacity crossfade ============ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-delay: 0ms !important;
+    transition-duration: 1ms !important;
+  }
+  .log-step, .day-card, .ex-card, .auth-card { animation: qs-rmo-fade 1ms linear; }
+  .seg::after { transition: none; }
+  .save-host.is-confirm .save-ring .qs-arc,
+  .save-host.is-confirm .save-ring .qs-check { animation: none; stroke-dashoffset: 0; opacity: 1; transform: scale(1); }
+  .save-host.is-bloom .save-btn::before { animation: none; }
+  @keyframes qs-rmo-fade { from { opacity: 0; } to { opacity: 1; } }
+}
