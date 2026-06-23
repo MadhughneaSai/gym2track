@@ -4,7 +4,7 @@ import { initLog, openEntryFor, openDay } from './log.js';
 import { initHistory } from './history.js';
 import { initProgress } from './progress.js';
 import { initSettings, openSettings } from './settings.js';
-import { initCoach } from './coach.js';
+import { initCoach, syncCoach } from './coach.js';
 import { seedDemo, setPref, attachCloud, detachCloud, applyCloudPrefs, localBackup, isMock } from './state.js';
 import * as cloud from './cloud.js';
 
@@ -142,6 +142,7 @@ async function onSignedIn(user) {
   try { cloudPrefs = await cloud.loadPrefs(uid); } catch (e) { console.error('loadPrefs', e); }
   applyCloudPrefs(cloudPrefs);
   attachCloud(makeBackend(uid));
+  syncCoach();          // uid is known now — re-point the coach at this user's chat store
   hideGate();
   // one-time offer to lift this device's local history into the account
   let migrating = false;
@@ -274,7 +275,7 @@ if (cloud.isConfigured) {
     await cloud.resolveRedirect();          // finish any Google redirect sign-in
     cloud.watchAuth(user => {
       if (user) onSignedIn(user);
-      else { detachCloud(); showGate(); }
+      else { detachCloud(); syncCoach(); showGate(); }
     });
   }).catch(e => {
     console.error('cloud init failed', e);

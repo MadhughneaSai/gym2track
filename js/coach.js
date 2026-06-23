@@ -25,6 +25,7 @@ const MAX_CONVOS = 40;               // keep the most recent N conversations
 let convos = [];        // [{ id, title, messages:[{role,content}], createdAt, updatedAt }]
 let activeId = null;
 let streaming = false;
+let loadedKey = null;   // which store key convos was last loaded from (re-point when it changes)
 const els = {};
 
 export function initCoach() {
@@ -52,19 +53,34 @@ export function initCoach() {
     if (document.visibilityState === 'visible' && !streaming && rollIfStale()) render();
   });
 
-  // Demo toggle flips the data mode. Swap the coach to the matching store; when leaving
-  // demo, wipe the demo session first so it's a clean reset and the real coach resumes.
+  // Demo toggle flips the data mode (→ a different store key). When leaving demo, wipe the demo
+  // session first so it's a clean reset, then re-point at whichever store now applies.
   let lastMock = isMock();
   onChange(() => {
     const m = isMock();
-    if (m === lastMock) return;            // ordinary data change, not a mode flip
-    lastMock = m;
-    if (!m) { try { localStorage.removeItem(demoStoreKey()); } catch {} }  // left demo → reset it
-    load();
-    rollIfStale();
-    render();
+    if (m !== lastMock) {
+      lastMock = m;
+      if (!m) { try { localStorage.removeItem(demoStoreKey()); } catch {} }  // left demo → reset it
+    }
+    reloadIfStoreChanged();
   });
 }
+
+// Re-point the coach at the store for the current user + mode if it changed. The store is keyed
+// by uid, but the uid isn't known yet at initCoach() time (auth resolves async after boot), so
+// without this the user's own saved chats stay loaded under "local" and look like they vanished.
+// Idempotent: a no-op unless the active store key actually changed.
+function reloadIfStoreChanged() {
+  if (storeKey() === loadedKey) return false;
+  load();
+  rollIfStale();
+  render();
+  return true;
+}
+
+// Called by app.js whenever auth state resolves (sign-in / sign-out): the uid becomes available
+// (or clears), so swap the coach to that user's chat store.
+export function syncCoach() { reloadIfStoreChanged(); }
 
 /* ============ conversation store (per-device, per-user) ============ */
 const rid = () => (crypto.randomUUID ? crypto.randomUUID() : 'c' + Date.now() + Math.random());
@@ -76,8 +92,9 @@ const storeKey = () => `workout:coach:v2:${uidPart()}${isMock() ? ':demo' : ''}`
 const titleFromMsgs = msgs => { const u = msgs.find(m => m.role === 'user'); return u ? u.content.slice(0, 48) : ''; };
 
 function load() {
+  loadedKey = storeKey();
   let s = null;
-  try { s = JSON.parse(localStorage.getItem(storeKey())); } catch {}
+  try { s = JSON.parse(localStorage.getItem(loadedKey)); } catch {}
   convos = (s && Array.isArray(s.convos)) ? s.convos : [];
   activeId = (s && s.active) || (convos[0] && convos[0].id) || null;
 
