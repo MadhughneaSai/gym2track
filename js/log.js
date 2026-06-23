@@ -2,7 +2,7 @@
 
 import { DAYS, dayById, exercisesFor, exById } from './exercises.js';
 import { pict, GLYPHS } from './icons.js';
-import { addEntry, lastInputFor, lastLogged, topSet, todayKey, fmtLong, fmtDate, fmtDow } from './state.js';
+import { addEntry, lastInputFor, lastLogged, topSet, todayKey, fmtLong, fmtDate, fmtDow, weightStep } from './state.js';
 import { toast, openSheet, closeSheet } from './app.js';
 
 const root = () => document.getElementById('log-steps');
@@ -123,7 +123,7 @@ function renderEntryStep() {
 
   el.querySelector('#step-back').addEventListener('click', () => renderExStep(true));
   el.querySelector('#log-date').addEventListener('click', () => openDateSheet(el));
-  bindStepper(el, 'weight', 5, 0);
+  bindStepper(el, 'weight', weightStep(), 0);   // 5 lb by default, or 2.5 lb if enabled in Settings
   bindStepper(el, 'reps', 1, 1);
 
   el.querySelector('#save').addEventListener('click', () => {

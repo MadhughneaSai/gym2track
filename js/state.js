@@ -182,6 +182,20 @@ export function setPref(path, value) {
 }
 export const prefs = () => doc.prefs;
 
+// Weight-stepper increment for NEW logging only (5 lb default, or fine 2.5 lb steps).
+// Standalone device setting — deliberately NOT in the workout doc: it touches no entries
+// and never syncs with your data, so existing logged sets are completely unaffected.
+const STEP_KEY = 'workout:weight-step';
+const VALID_STEPS = [5, 2.5];
+let weightStepVal = 5;
+try { const s = parseFloat(localStorage.getItem(STEP_KEY)); if (VALID_STEPS.includes(s)) weightStepVal = s; } catch {}
+export const weightStep = () => weightStepVal;
+export function setWeightStep(v) {
+  weightStepVal = VALID_STEPS.includes(v) ? v : 5;
+  try { localStorage.setItem(STEP_KEY, String(weightStepVal)); } catch {}
+  return weightStepVal;
+}
+
 // ---- selectors ----
 export const allEntries = () => doc.entries;
 

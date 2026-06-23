@@ -1,5 +1,5 @@
 // Stale-while-revalidate: instant offline launches, refreshes itself in the background.
-const CACHE = 'workout-v21';
+const CACHE = 'workout-v22';
 const ASSETS = [
   '.', 'index.html', 'styles.css', 'manifest.webmanifest',
   'js/app.js', 'js/state.js', 'js/exercises.js', 'js/icons.js',

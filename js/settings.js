@@ -4,6 +4,7 @@
 import { GLYPHS } from './icons.js';
 import {
   isMock, setMockMode, exportJSON, importJSON, clearAll, todayKey,
+  weightStep, setWeightStep,
 } from './state.js';
 import { isConfigured, currentUser, signOutUser } from './cloud.js';
 import { openSheet, closeSheet, toast, applyTheme } from './app.js';
@@ -40,12 +41,23 @@ export function openSettings() {
   const themeSeg = THEMES.map(t =>
     `<button class="set-opt${t.id === currentTheme() ? ' is-active' : ''}" data-theme="${t.id}">${t.name}</button>`).join('');
 
+  const stepNow = weightStep();
+  const stepSeg = [5, 2.5].map(v =>
+    `<button class="set-opt${v === stepNow ? ' is-active' : ''}" data-step="${v}">${v} lb</button>`).join('');
+
   const sheet = openSheet(`
     <h3>Settings</h3>
     ${profile}
     <div class="set-row">
       <div class="set-label"><div class="set-title">Theme</div></div>
       <div class="set-seg" id="s-theme">${themeSeg}</div>
+    </div>
+    <div class="set-row">
+      <div class="set-label">
+        <div class="set-title">Weight steps</div>
+        <div class="set-desc">+/− increment when logging. Doesn't change any sets you've already saved.</div>
+      </div>
+      <div class="set-seg" id="s-step">${stepSeg}</div>
     </div>
     <div class="set-row">
       <div class="set-label">
@@ -85,6 +97,13 @@ export function openSettings() {
   sheet.querySelectorAll('#s-theme .set-opt').forEach(b => b.addEventListener('click', () => {
     applyTheme(b.dataset.theme);
     sheet.querySelectorAll('#s-theme .set-opt').forEach(x => x.classList.toggle('is-active', x === b));
+  }));
+
+  // weight steps — affects only the +/− increment for future logging; never touches saved sets
+  sheet.querySelectorAll('#s-step .set-opt').forEach(b => b.addEventListener('click', () => {
+    const v = setWeightStep(parseFloat(b.dataset.step));
+    sheet.querySelectorAll('#s-step .set-opt').forEach(x => x.classList.toggle('is-active', x === b));
+    toast(`Logging in ${v} lb steps`);
   }));
 
   // demo toggle — local sandbox; never touches real or cloud data
