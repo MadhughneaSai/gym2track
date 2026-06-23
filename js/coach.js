@@ -4,7 +4,10 @@
 // per-device: "+" starts a fresh one, old ones stay in History, and after a stretch of
 // inactivity the next visit rolls into a new chat automatically.
 
-import { isConfigured, currentUser, getIdToken, clearMemories, loadMemories, deleteMemory } from './cloud.js';
+import {
+  isConfigured, currentUser, getIdToken, clearMemories, loadMemories, deleteMemory,
+  subscribeChats, putChat, deleteChat, clearChats,
+} from './cloud.js';
 import { openSheet, closeSheet, toast } from './app.js';
 import { isMock, allEntries, onChange } from './state.js';
 import { GLYPHS } from './icons.js';
@@ -75,12 +78,65 @@ function reloadIfStoreChanged() {
   load();
   rollIfStale();
   render();
+  syncCloudSub();          // (re)point the cross-device chat subscription at this user/mode
   return true;
 }
 
 // Called by app.js whenever auth state resolves (sign-in / sign-out): the uid becomes available
 // (or clears), so swap the coach to that user's chat store.
 export function syncCoach() { reloadIfStoreChanged(); }
+
+/* ============ cross-device sync (Firestore: users/{uid}/chats) ============ */
+// Real, signed-in chats sync across devices like logs do. Demo chats stay local-only.
+let chatUnsub = null;
+const cloudChats = () => isConfigured && !!currentUser() && !isMock();
+
+function syncCloudSub() {
+  if (chatUnsub) { chatUnsub(); chatUnsub = null; }
+  if (cloudChats()) chatUnsub = subscribeChats(currentUser().uid, onCloudChats);
+}
+
+function pushChatCloud(c) {
+  if (!cloudChats() || !c || !c.messages.length) return;
+  try {
+    putChat(currentUser().uid, {
+      id: c.id,
+      title: c.title || titleFromMsgs(c.messages),
+      messages: c.messages,
+      createdAt: c.createdAt || Date.now(),
+      updatedAt: c.updatedAt || Date.now(),
+    });
+  } catch (e) { console.error('pushChat', e); }
+}
+
+// Pure union-merge: never drops a chat. Newer updatedAt wins; a chat present only locally is
+// uploaded (this is how each device's existing chats migrate into the shared cloud set on first
+// sync). The active chat is left untouched while it's mid-stream.
+export function mergeChats(local, cloud, activeId, streaming) {
+  const cById = new Map(cloud.map(c => [c.id, c]));
+  const lById = new Map(local.map(c => [c.id, c]));
+  const merged = [], pushUp = [];
+  for (const id of new Set([...cById.keys(), ...lById.keys()])) {
+    const cc = cById.get(id), lc = lById.get(id);
+    if (streaming && id === activeId && lc) { merged.push(lc); continue; }
+    if (cc && lc) {
+      if ((lc.updatedAt || 0) > (cc.updatedAt || 0)) { merged.push(lc); pushUp.push(id); }
+      else merged.push(cc);
+    } else if (cc) merged.push(cc);
+    else { merged.push(lc); pushUp.push(id); }
+  }
+  merged.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+  return { merged, pushUp };
+}
+
+function onCloudChats(incoming) {
+  const { merged, pushUp } = mergeChats(convos, incoming, activeId, streaming);
+  convos = merged;
+  if (!convos.some(c => c.id === activeId)) activeId = convos[0]?.id || null;
+  for (const id of pushUp) pushChatCloud(convos.find(c => c.id === id));  // upload local-only/newer
+  saveStore();
+  if (!streaming) render();
+}
 
 /* ============ conversation store (per-device, per-user) ============ */
 const rid = () => (crypto.randomUUID ? crypto.randomUUID() : 'c' + Date.now() + Math.random());
@@ -151,6 +207,7 @@ function deleteConvo(id) {
   convos = convos.filter(c => c.id !== id);
   if (activeId === id) activeId = convos[0]?.id || null;
   saveStore();
+  if (cloudChats()) { try { deleteChat(currentUser().uid, id); } catch (e) { console.error('deleteChat', e); } }
 }
 
 /* ============ Settings hooks: reset + export ============ */
@@ -158,9 +215,12 @@ export async function resetCoachMemory() {
   convos = []; activeId = null;
   saveStore();
   if (els.list) render();
-  // Only clear the real server-side profile in real mode — demo writes no memories,
-  // so a demo reset must never touch the user's actual Firestore memory profile.
-  if (isConfigured && currentUser() && !isMock()) await clearMemories(currentUser().uid);
+  // Only clear the real server-side data in real mode — demo writes nothing to the cloud,
+  // so a demo reset must never touch the user's actual Firestore memory or synced chats.
+  if (isConfigured && currentUser() && !isMock()) {
+    await clearMemories(currentUser().uid);
+    try { await clearChats(currentUser().uid); } catch (e) { console.error('clearChats', e); }
+  }
 }
 
 // "What your coach knows": show the durable memory profile that's loaded into EVERY chat,
@@ -350,6 +410,7 @@ async function ask(text) {
   convo.messages.push({ role: 'assistant', content: acc });
   convo.updatedAt = Date.now();
   saveStore();
+  pushChatCloud(convo);                    // sync this exchange across devices
   streaming = false;
   els.send.disabled = false;
   scrollDown();

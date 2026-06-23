@@ -19,22 +19,29 @@ export const isConfigured = !!FIREBASE_CONFIG.apiKey && !FIREBASE_CONFIG.apiKey.
 const V = 'https://www.gstatic.com/firebasejs/12.6.0';
 let auth, db, A, F;
 
-export async function initCloud() {
-  if (!isConfigured) return false;
-  const [appMod, authMod, fsMod] = await Promise.all([
-    import(`${V}/firebase-app.js`),
-    import(`${V}/firebase-auth.js`),
-    import(`${V}/firebase-firestore.js`),
-  ]);
-  A = authMod; F = fsMod;
-  const app = appMod.initializeApp(FIREBASE_CONFIG);
-  auth = A.getAuth(app);
-  // Offline-first cache: writes hit IndexedDB instantly and sync in the background.
-  db = F.initializeFirestore(app, {
-    localCache: F.persistentLocalCache({ tabManager: F.persistentMultipleTabManager() }),
-  });
-  return true;
+let readyPromise = null;
+export function initCloud() {
+  if (!isConfigured) return Promise.resolve(false);
+  // memoized: the SDK loads once, and auth actions await this so a tap before the
+  // (async) SDK import finishes doesn't silently no-op — a real cause of "nothing happens".
+  if (!readyPromise) readyPromise = (async () => {
+    const [appMod, authMod, fsMod] = await Promise.all([
+      import(`${V}/firebase-app.js`),
+      import(`${V}/firebase-auth.js`),
+      import(`${V}/firebase-firestore.js`),
+    ]);
+    A = authMod; F = fsMod;
+    const app = appMod.initializeApp(FIREBASE_CONFIG);
+    auth = A.getAuth(app);
+    // Offline-first cache: writes hit IndexedDB instantly and sync in the background.
+    db = F.initializeFirestore(app, {
+      localCache: F.persistentLocalCache({ tabManager: F.persistentMultipleTabManager() }),
+    });
+    return true;
+  })();
+  return readyPromise;
 }
+const ensureReady = () => readyPromise || initCloud();
 
 // ---- auth ----
 export const watchAuth = cb => A.onAuthStateChanged(auth, cb);
@@ -42,14 +49,27 @@ export const currentUser = () => auth?.currentUser || null;
 // Firebase ID token for authenticating calls to our own backend (the coach function)
 export const getIdToken = () => auth?.currentUser?.getIdToken() || Promise.resolve(null);
 
+// touch devices / in-app webviews: popups are unreliable (blocked, or open a detached tab that
+// can't post back — the "open in a new tab & paste the URL" symptom). Redirect is robust there.
+const prefersRedirect = () => {
+  try {
+    return (window.matchMedia && window.matchMedia('(pointer: coarse)').matches)
+      || /Android|iPhone|iPad|iPod|Mobile|Silk|Kindle/i.test(navigator.userAgent || '');
+  } catch { return false; }
+};
+
 export async function signInGoogle() {
+  await ensureReady();
   const provider = new A.GoogleAuthProvider();
   provider.setCustomParameters({ prompt: 'select_account' });
+  if (prefersRedirect()) {
+    await A.signInWithRedirect(auth, provider);   // navigates away; resolves on reload
+    return null;
+  }
   try {
     return await A.signInWithPopup(auth, provider);
   } catch (e) {
-    // popups are fragile (blockers, COOP, installed PWAs, in-app webviews) —
-    // fall back to a full-page redirect, which is far more reliable on mobile.
+    // popups are fragile (blockers, COOP, installed PWAs) — fall back to a full-page redirect.
     const code = e?.code || '';
     if (/popup-blocked|popup-closed-by-user|cancelled-popup-request|operation-not-supported|web-storage-unsupported|internal-error/.test(code)) {
       await A.signInWithRedirect(auth, provider);
@@ -62,8 +82,8 @@ export async function signInGoogle() {
 export async function resolveRedirect() {
   try { return await A.getRedirectResult(auth); } catch (e) { console.error('redirect result', e); return null; }
 }
-export const signInEmail = (email, pw) => A.signInWithEmailAndPassword(auth, email, pw);
-export const registerEmail = (email, pw) => A.createUserWithEmailAndPassword(auth, email, pw);
+export const signInEmail = async (email, pw) => { await ensureReady(); return A.signInWithEmailAndPassword(auth, email, pw); };
+export const registerEmail = async (email, pw) => { await ensureReady(); return A.createUserWithEmailAndPassword(auth, email, pw); };
 export const signOutUser = () => A.signOut(auth);
 
 // ---- firestore: users/{uid}/entries/{id} + users/{uid}/meta/prefs ----
@@ -107,6 +127,22 @@ export async function uploadLocal(uid, entries, prefs) {
 }
 export async function clearCloud(uid) {
   const snap = await F.getDocs(entriesCol(uid));
+  await runBatched(snap.docs.map(d => ({ del: true, ref: d.ref })));
+}
+
+// ---- firestore: users/{uid}/chats/{id} — coach conversations, synced across devices ----
+const chatsCol = uid => F.collection(db, 'users', uid, 'chats');
+export function subscribeChats(uid, cb) {
+  return F.onSnapshot(
+    chatsCol(uid),
+    snap => cb(snap.docs.map(d => ({ id: d.id, ...d.data() }))),
+    err => console.error('chats subscription error', err),
+  );
+}
+export const putChat = (uid, chat) => F.setDoc(F.doc(chatsCol(uid), chat.id), chat);
+export const deleteChat = (uid, id) => F.deleteDoc(F.doc(chatsCol(uid), id));
+export async function clearChats(uid) {
+  const snap = await F.getDocs(chatsCol(uid));
   await runBatched(snap.docs.map(d => ({ del: true, ref: d.ref })));
 }
 
