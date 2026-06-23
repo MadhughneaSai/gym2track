@@ -21,10 +21,17 @@ const db = admin.firestore();
 
 const DEEPSEEK_API_KEY = defineSecret('DEEPSEEK_API_KEY');
 const DEEPSEEK_URL = 'https://api.deepseek.com/chat/completions';
-// deepseek-v4-flash = thinking mode by default (best coaching answers; the chat shows a
-// "thinking" indicator while it reasons, then streams). Override via functions/.env:
-//   deepseek-v4-pro   → deeper reasoning  ·  deepseek-chat → faster non-thinking (deprecates 2026-07-24)
-const MODEL = process.env.DEEPSEEK_MODEL || 'deepseek-v4-flash';
+// Chat answers use a reasoning ("thinking") model for the deepest coaching. While it reasons the
+// chat shows a typing indicator, then the answer streams. Reasoning tokens count toward output,
+// so max_tokens on the completion must be generous or the answer gets truncated to empty.
+// Override via functions/.env:  deepseek-v4-pro → deepest reasoning, ~3× output cost ·
+//   deepseek-v4-flash → thinking, cheaper · deepseek-chat → fast, non-thinking.
+const MODEL = process.env.DEEPSEEK_MODEL || 'deepseek-v4-pro';
+// Background memory extraction runs after each reply (before the function instance freezes), so we
+// keep it on a FAST non-thinking model: it must not add reasoning latency to your turn, and the
+// chat model's choice (Pro/Flash) is independent of it. Memories themselves live in Firestore and
+// are model-agnostic — switching the chat model never touches them.
+const EXTRACT_MODEL = process.env.DEEPSEEK_EXTRACT_MODEL || 'deepseek-chat';
 
 // ── exercise catalog (mirrors js/exercises.js) so the summary reads in plain names ──
 const EX = {
@@ -167,7 +174,7 @@ async function extractMemories(uid, recentMsgs, existing, apiKey) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
       body: JSON.stringify({
-        model: MODEL,
+        model: EXTRACT_MODEL,
         messages: [{ role: 'user', content: prompt }],
         response_format: { type: 'json_object' },
         max_tokens: 400,
@@ -195,7 +202,8 @@ async function extractMemories(uid, recentMsgs, existing, apiKey) {
 exports.coach = onRequest(
   // invoker:'public' = anyone can REACH the function; the Firebase ID-token check inside is the
   // real gate. Without this, Cloud Run rejects every request with 403 before our code runs.
-  { secrets: [DEEPSEEK_API_KEY], timeoutSeconds: 120, memory: '256MiB', cors: false, invoker: 'public' },
+  // 300s: maximum-effort reasoning can think for a while before the answer streams; give it room.
+  { secrets: [DEEPSEEK_API_KEY], timeoutSeconds: 300, memory: '256MiB', cors: false, invoker: 'public' },
   async (req, res) => {
     // CORS (token is the real gate, so any origin is allowed)
     res.set('Access-Control-Allow-Origin', '*');
@@ -236,7 +244,7 @@ exports.coach = onRequest(
         entries = ctx.entries;
         memories = ctx.memories;
       }
-      console.log(`coach: uid=${uid.slice(0, 8)}… ${demo ? 'DEMO ' : ''}entries=${entries.length} memories=${memories.length}`);
+      console.log(`coach: uid=${uid.slice(0, 8)}… model=${MODEL} effort=max ${demo ? 'DEMO ' : ''}entries=${entries.length} memories=${memories.length}`);
       // CACHE-OPTIMIZED ordering: frozen persona + deterministic context as one system message,
       // then the conversation, then the latest question (already last in convo).
       const messages = [
@@ -250,10 +258,27 @@ exports.coach = onRequest(
 
       let answer = '';
       await pipeDeepSeek(
-        { model: MODEL, messages, stream: true, max_tokens: 1024 },
+        {
+          model: MODEL,
+          messages,
+          stream: true,
+          // Always-on, MAXIMUM reasoning — not DeepSeek's auto high/max. We force the toggle on
+          // and pin effort to max so every answer gets the deepest chain-of-thought the model can
+          // do. The reasoning streams as reasoning_content (which we drop — the typing indicator
+          // covers the think time), then the answer streams as content. reasoning_content counts
+          // toward max_tokens, so this is set high enough that deep thinking can't starve the
+          // answer down to empty (the failure we hit on the old low budget).
+          thinking: { type: 'enabled' },
+          reasoning_effort: 'max',
+          max_tokens: 16384,
+        },
         apiKey,
         delta => { answer += delta; res.write(delta); if (res.flush) res.flush(); },
       );
+
+      // a reasoning model can occasionally spend its whole budget thinking and emit no answer —
+      // never leave the user staring at a blank bubble.
+      if (!answer) { answer = 'I went deep on that one and lost the thread — ask me again?'; res.write(answer); }
 
       // learn from this exchange (does not affect the already-streamed answer):
       // feed the last several turns + the fresh answer so multi-turn facts aren't missed.
